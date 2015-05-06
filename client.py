@@ -15,6 +15,12 @@ class Client(object):
 
         self.socket.setblocking(0)
 
+    def on_receive(self, data):
+        pass
+
+    def send(self, data):
+        self.socket.sendall(data)
+
     def disconnect(self):
         self.exit_request = True
 
@@ -34,7 +40,7 @@ class ClientThread(threading.Thread):
             data = self.parent.socket.recv(1024)
             if not data:
                 break
-            self.parent.socket.sendall(data)
+            self.parent.on_receive(data)
 
         self.parent.socket.sendall('Bye!')
         self.parent.socket.close()
