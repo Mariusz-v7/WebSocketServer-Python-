@@ -16,6 +16,7 @@ class Client(object):
         self.exit_request = False
         self.handshake_start = False
         self.handshake_completed = False
+        self.buffer = bytearray()
 
         #
         self.thread = ClientThread(self)
@@ -45,33 +46,120 @@ class Client(object):
                 self.handshake_completed = True
 
     def on_receive(self, data):
-        data = str(data)
+        for byte in data:
+            self.buffer.append(byte)
+        self.parse_buffer()
+
+    def parse_buffer(self):
         if not self.handshake_completed:
-            lines = data.split('\n')
-            for command in lines:
-                self.handshake(command)
+            command = ''
+            for byte in self.buffer:
+                if chr(byte) == '\n':
+                    self.handshake(command)
+                    for k in command:
+                        self.buffer.pop(0)
+                    self.buffer.pop(0)
+
+                    self.parse_buffer()
+                    return
+                command += chr(byte)
         else:
-            self.data_from_websocket(self.unmask(data))
+            while len(self.buffer) > 0 and self.buffer[0] & (~0x80) != 0x01:
+                self.buffer.pop(0)
+
+            if len(self.buffer) > 0:
+                self.parse_frame()
+
+    def parse_frame(self):
+        length = self.get_frame_length(self.buffer)
+
+        if not length:  # buffer too short
+            return
+
+        if length <= len(self.buffer):
+            data = self.unmask(self.buffer)
+            if not data:
+                return
+
+            for i in range(0, length):
+                self.buffer.pop(0)
+
+            self.data_from_websocket(data)
+            self.parse_buffer()
+        else:  # buffer too short - wait until next data come
+            return
+
+    def get_frame_length(self, payload):
+        try:
+            length = payload[1] & 0x7F
+
+            if length == 126:  # length field is next two bytes
+                lenbytes = []
+                for i in range(0, 2):
+                    lenbytes.append(payload[2 + i])
+                length = lowlewel.multibyteval(lenbytes)
+                length += 2  # 2 bytes of length value
+            elif length == 127:  # length field is next 8 bytes
+                lenbytes = []
+                for i in range(0, 8):
+                    lenbytes.append(payload[2 + i])
+                length = lowlewel.multibyteval(lenbytes)
+                length += 8  # 8 bytes of length value
+            elif length > 125:
+                return None  # unknown length
+
+        except IndexError:
+            return None
+
+        length += 1  # first field
+        length += 1  # basic payload field len
+        length += 4  # mask len
+
+        return length
+
+    def get_payload_length(self, payload):
+        try:
+            length = payload[1] & 0x7F
+
+            if length <= 125:
+                return length
+            if length == 126:  # length field is next two bytes
+                lenbytes = []
+                for i in range(0, 2):
+                    lenbytes.append(payload[2 + i])
+                length = lowlewel.multibyteval(lenbytes)
+            elif length == 127:  # length field is next 8 bytes
+                lenbytes = []
+                for i in range(0, 8):
+                    lenbytes.append(payload[2 + i])
+                length = lowlewel.multibyteval(lenbytes)
+            else:
+                return None  # unknown length
+
+        except IndexError:
+            return None
+
+        return length
 
     def unmask(self, payload):
-        length = ord(payload[1]) & 0x7F
+        try:
+            length = payload[1] & 0x7F
+        except IndexError:
+            return None
 
         if length <= 125:
             maskstart_index = 2
         elif length == 126:  # length field is next two bytes
-            lenbytes = []
-            for i in range(0, 2):
-                lenbytes.append(ord(payload[2 + i]))
-            length = lowlewel.multibyteval(lenbytes)
+            length = self.get_payload_length(payload)
             maskstart_index = 4
         elif length == 127:  # length field is next 8 bytes
-            lenbytes = []
-            for i in range(0, 8):
-                lenbytes.append(ord(payload[2 + i]))
-            length = lowlewel.multibyteval(lenbytes)
+            length = self.get_payload_length(payload)
             maskstart_index = 10
         else:
             return None  # unknown length
+
+        if not length:
+            return None
 
         try:  # if frame is not complete, return None
             maskkey = payload[maskstart_index:(maskstart_index + 5)]
@@ -82,7 +170,7 @@ class Client(object):
 
         text = ''
         for i, c in enumerate(data):
-            text += chr(ord(c) ^ ord(maskkey[i % 4]))
+            text += chr(c ^ maskkey[i % 4])
 
         return text
 
