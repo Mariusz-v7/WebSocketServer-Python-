@@ -50,6 +50,19 @@ class Client(object):
             self.buffer.append(byte)
         self.parse_buffer()
 
+    def cut_to_frame_begining(self):
+        allowed_frame_opcodes = [0x01, 0x02, 0x08, 0x09, 0x0A, 0x0B]
+        # 0x01 is a text frame
+        # 0x02 is a binary frame
+        # 0x03 - 0x07 are reserved
+        # 0x08 indicates a connection close
+        # 0x09 indicates a ping
+        # 0x0A indicates a pong
+        # 0x0B - 0x0F are reserverd
+        allowed_frame_opcodes = [0x01, 0x02]  # we support only text and binary frames for now
+        while len(self.buffer) > 0 and not self.buffer[0] & (~0x80) in allowed_frame_opcodes:
+            self.buffer.pop(0)
+
     def parse_buffer(self):
         if not self.handshake_completed:
             command = ''
@@ -64,9 +77,7 @@ class Client(object):
                     return
                 command += chr(byte)
         else:
-            while len(self.buffer) > 0 and self.buffer[0] & (~0x80) != 0x01:
-                self.buffer.pop(0)
-
+            self.cut_to_frame_begining()
             if len(self.buffer) > 0:
                 self.parse_frame()
 
