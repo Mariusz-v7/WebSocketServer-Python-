@@ -3,7 +3,7 @@ import select
 import re
 import hashlib
 import base64
-import lowlewel
+import lowlevel
 
 
 class Client(object):
@@ -97,13 +97,13 @@ class Client(object):
                 lenbytes = []
                 for i in range(0, 2):
                     lenbytes.append(payload[2 + i])
-                length = lowlewel.multibyteval(lenbytes)
+                length = lowlevel.multibyteval(lenbytes)
                 length += 2  # 2 bytes of length value
             elif length == 127:  # length field is next 8 bytes
                 lenbytes = []
                 for i in range(0, 8):
                     lenbytes.append(payload[2 + i])
-                length = lowlewel.multibyteval(lenbytes)
+                length = lowlevel.multibyteval(lenbytes)
                 length += 8  # 8 bytes of length value
             elif length > 125:
                 return None  # unknown length
@@ -127,12 +127,12 @@ class Client(object):
                 lenbytes = []
                 for i in range(0, 2):
                     lenbytes.append(payload[2 + i])
-                length = lowlewel.multibyteval(lenbytes)
+                length = lowlevel.multibyteval(lenbytes)
             elif length == 127:  # length field is next 8 bytes
                 lenbytes = []
                 for i in range(0, 8):
                     lenbytes.append(payload[2 + i])
-                length = lowlewel.multibyteval(lenbytes)
+                length = lowlevel.multibyteval(lenbytes)
             else:
                 return None  # unknown length
 
@@ -185,7 +185,7 @@ class Client(object):
             output_buffer.append(length)
         elif length <= 0xFFFF:
             output_buffer.append(126)
-            lenbytes = lowlewel.multibytetoarray(length)
+            lenbytes = lowlevel.multibytetoarray(length)
             for i in range(0, 2):
                 try:
                     output_buffer.append(lenbytes[i])
@@ -193,7 +193,7 @@ class Client(object):
                     output_buffer.append(0)
         else:
             output_buffer.append(127)
-            lenbytes = lowlewel.multibytetoarray(length)
+            lenbytes = lowlevel.multibytetoarray(length)
             for i in range(0, 8):
                 try:
                     output_buffer.append(lenbytes[i])
