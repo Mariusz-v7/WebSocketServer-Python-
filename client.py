@@ -57,25 +57,28 @@ class Client(object):
         length = ord(payload[1]) & 0x7F
 
         if length <= 125:
-            maskkey = payload[2:7]
-            data = payload[6:]
-            data = data[:length]
-        elif length == 126: #length field is next two bytes
+            maskstart_index = 2
+        elif length == 126:  # length field is next two bytes
             lenbytes = []
             for i in range(0, 2):
                 lenbytes.append(ord(payload[2 + i]))
-            length = lowlewel.multibyteval(lenbytes) # new length
-            maskkey = payload[4:9]
-            data = payload[8:]
-            data = data[:length]
-        elif length == 127: #length field is next 8 bytes
+            length = lowlewel.multibyteval(lenbytes)
+            maskstart_index = 4
+        elif length == 127:  # length field is next 8 bytes
             lenbytes = []
             for i in range(0, 8):
                 lenbytes.append(ord(payload[2 + i]))
-            length = lowlewel.multibyteval(lenbytes) # new length
-            maskkey = payload[10:15]
-            data = payload[14:]
+            length = lowlewel.multibyteval(lenbytes)
+            maskstart_index = 10
+        else:
+            return None  # unknown length
+
+        try:  # if frame is not complete, return None
+            maskkey = payload[maskstart_index:(maskstart_index + 5)]
+            data = payload[(maskstart_index + 4):]
             data = data[:length]
+        except IndexError:
+            return None
 
         text = ''
         for i, c in enumerate(data):
