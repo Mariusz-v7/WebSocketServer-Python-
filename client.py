@@ -41,7 +41,7 @@ class Client(object):
                 response += 'Sec-WebSocket-Accept: '+response_code+'\r\n'
                 response += '\r\n'
 
-                self.send(response)
+                self.send_raw(response)
                 self.handshake_start = False
                 self.handshake_completed = True
 
@@ -174,11 +174,56 @@ class Client(object):
 
         return text
 
+    def encode_data(self, data):
+        byte1 = 0x80 | (0x01 & 0x0F)
+        length = len(data)
+
+        output_buffer = bytearray()
+        output_buffer.append(byte1)
+
+        if length <= 125:
+            output_buffer.append(length)
+        elif length <= 0xFFFF:
+            output_buffer.append(126)
+            lenbytes = lowlewel.multibytetoarray(length)
+            for i in range(0, 2):
+                try:
+                    output_buffer.append(lenbytes[i])
+                except IndexError:
+                    output_buffer.append(0)
+        else:
+            output_buffer.append(127)
+            lenbytes = lowlewel.multibytetoarray(length)
+            for i in range(0, 8):
+                try:
+                    output_buffer.append(lenbytes[i])
+                except IndexError:
+                    output_buffer.append(0)
+            return None
+
+        for byte in data:
+            output_buffer.append(byte)
+
+        return output_buffer
+
     def data_from_websocket(self, data):
         print 'ws: ', data
+        self.send('thank you')
 
     def send(self, data):
-        self.socket.sendall(data)
+        output_buffer = self.encode_data(data)
+        if not output_buffer:
+            return
+        try:
+            self.socket.sendall(output_buffer)
+        except:
+            return
+
+    def send_raw(self, data):
+        try:
+            self.socket.sendall(data)
+        except:
+            return
 
     def disconnect(self):
         self.exit_request = True
