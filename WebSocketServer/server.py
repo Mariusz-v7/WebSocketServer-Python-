@@ -26,6 +26,9 @@ class Server(object):
             while cli.connected:
                 pass
 
+    def create_client(self, client_socket, address):
+        return client.Client(client_socket, address, self)
+
     def close(self):
         self.exit_request = True
         while self.running:
@@ -47,7 +50,7 @@ class ServerThread(threading.Thread):
                 continue
 
             client_socket, address = self.parent.socket.accept()
-            self.parent.clients.append(client.Client(client_socket, address, self.parent))
+            self.parent.clients.append(self.parent.create_client(client_socket, address))
 
         self.parent.socket.close()
         self.parent.disconnect_all()
