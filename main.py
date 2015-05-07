@@ -1,9 +1,9 @@
-import server
+import WebSocketServer.server
 
 
 print "hello"
 
-srv = server.Server(1234)
+srv = WebSocketServer.server.Server(1234)
 running = True
 
 while running:
